@@ -1,0 +1,149 @@
+# Part 2 — Literature Search, Critical Synthesis & Comparison Matrix
+
+Below is a complete draft for Part 2 of your report. It assumes the six papers you listed and is written so you can paste/adapt it into your submission. I flag where you must verify details (e.g., code release status, GPU counts) against the papers/repos because the excerpts do not always state them.
+
+---
+
+## 2.1 Literature Comparison Matrix
+
+> **Note on abbreviations:** ITC = image–text contrastive; ITM = image–text matching; MLM = masked language modeling; LM = language modeling; MTL = masked token loss; VLP = vision–language pre-training; MED = multimodal mixture of encoder–decoder; CapFilt = captioning + filtering; AMT = Amazon Mechanical Turk.
+
+| Paper | Question & Contribution | Modalities & Assumptions | Mechanism & Objective | Data & Protocol | Baselines & Evidence | Resources & Reproducibility | Limitations & Connections |
+|---|---|---|---|---|---|---|---|
+| **COCO** (Lin et al., ECCV 2014) | Build a large-scale dataset for *scene understanding*: detect non-iconic objects, reason about context, and localize instances precisely via per-instance segmentation. Contribution is the dataset + annotation pipeline, not a model. | RGB images + 5 captions/image. Annotates only entry-level "thing" categories (no "stuff"). Assumes everyday scenes with contextual object co-occurrence. | No learned objective; provides DPM detection baseline and a segmentation-from-detection baseline (mixture-specific shape masks). Evaluation: AP (box) and IoU (segmentation). | 328k images, 91 categories, 2.5M instances. 2014 release: 82,783 train / 40,504 val / 40,775 test; segmentations for 80 categories (11 omitted). Karpathy split used downstream. | DPMv5-P (trained on PASCAL) vs. DPMv5-C (trained on COCO): COCO is ~2× harder; cross-dataset generalization analyzed. | Public data + evaluation server; ~70k AMT worker-hours; no model code (dataset paper). | Only "things"; 11 categories omitted in 2014; label ambiguity; static images; no modality-missing or robustness analysis. Connects to all VLP papers as the canonical retrieval/captioning benchmark. |
+| **CLIP** (Radford et al., ICML 2021) | Learn transferable visual models from *natural language supervision at scale* (400M web pairs) and enable zero-shot transfer via prompt-based classifiers. | Image + text pairs from the web (WIT). Assumes alt-text is semantically meaningful. No object detector. At test time, class names/prompts define the task. | Symmetric contrastive loss (InfoNCE-style) over an N×N batch of image/text embeddings; image encoder (ResNet or ViT) + text encoder (Transformer); cosine similarity; learnable temperature. | WIT: 400M pairs from 500k queries (≤20k per query). Evaluated zero-shot and linear-probe on 30+ datasets. | Visual N-Grams, ResNet50 linear probe, BiT, SimCLRv2, EfficientNet, etc. Matches ResNet50 ImageNet accuracy zero-shot; better effective robustness under distribution shift. | Largest model RN50x64: 18 days on 592 V100s; ViT-L/14: 12 days on 256 V100s. Code + weights public (MIT). Inference feasible on one GPU. | Weak on abstract/complex tasks (EuroSAT, GTSRB, CLEVR counting); social biases; data overlap; ~1000× compute gap to overall SOTA; assumes both modalities are present at inference. |
+| **ModDrop** (Neverova et al., TPAMI 2016) | Multi-modal gesture detection/localization/recognition with a tree-structured ConvNet; introduces **ModDrop** training to make fusion robust to missing/corrupted channels. Won ChaLearn 2014 LAP (track 3). | Depth video, intensity video, articulated pose, and audio; 3 temporal scales (dynamic poses). Assumes synchronized modalities; test-time missing channels are expected. | Per-modality pre-training; shared-layer fusion initialized with diagonal blocks (normalized geometric mean), then relaxed. ModDrop randomly drops whole modality channels with Bernoulli selectors; derived as a cross-modality regularizer. | ChaLearn 2014 LAP: 13,858 instances, 20 gesture classes, Jaccard index. Audio augmented from ChaLearn 2013. | ERT baseline, phoneme-recognition baseline, 17 challenge teams. Post-challenge score 0.870; robustness tables for missing/noisy channels. | Theano; single-scale ~24 fps on GPU. Code release not clearly stated in the paper (verify). | Gesture-specific; compact model; small dataset by modern standards; not scaled to web-scale VLP. **Connects to VLP via the robustness principle**: drop modalities during training to learn cross-modal structure. |
+| **OSCAR** (Li et al., ECCV 2020) | Use **object tags detected in images as anchor points** to ease image–text alignment in VLP. New pre-training method; SoTA on six V+L tasks. | Image regions (Faster R-CNN) + object tags + text. Assumes salient objects appear in both image and paired text. Requires an object detector at pre-training. | Input is a Word–Tag–Image triple. Objectives: Masked Token Loss (words + tags) and a Contrastive Loss (original vs. polluted tag/image). BERT initialization; region features linearly projected. | 6.5M text–tag–image triples (COCO, CC, SBU, Flickr30k, GQA, VG-QA, VQA). Downstream: COCO retrieval/captioning, NoCaps, VQA2, NLVR2, GQA. | UNITER, VILLA, 12-in-1, small SoTA models. Base OSCAR outperforms previous large models on most tasks; strong NoCaps generalization. | BERT-base/large; AdamW; GPU count not stated in excerpt (verify). Code likely public (Microsoft). | Needs object detector; tag noise; limited to detected objects; no explicit training for missing tags at test time. **Connects to ALBEF/BLIP** as the "alignment via anchors" line of work. |
+| **ALBEF** (Li et al., NeurIPS 2021) | **Align before fuse**: add ITC on unimodal encoders before cross-modal fusion; **momentum distillation** to learn from noisy web data. SoTA on retrieval, VQA, NLVR², SNLI-VE, visual grounding. | Image (ViT-B/16) + text (BERT-base). Assumes unaligned unimodal features make fusion hard; web data is noisy. No object detector. | ITC (contrastive on [CLS] embeddings, momentum queue) + MLM + ITM with contrastive hard-negative mining. Momentum model produces soft pseudo-targets (MoD). Theoretical MI-maximization view. | 4M / 14M images (COCO, VG, CC, SBU, CC12M). Flickr30K/COCO retrieval, VQA2, NLVR², SNLI-VE, RefCOCO+. | UNITER, VILLA, OSCAR, CLIP, ALIGN. SoTA or competitive; >10× faster inference than VILLA on NLVR² (ITC top-k + ITM rerank). Ablations isolate ITC, hard negatives, MoD. | ViT-B + BERT-base; 8× A100; 30 epochs; code + weights public. | Web noise; encoder-only (no generation); no explicit missing-modality training. **Connects to BLIP** (BLIP adds generation + CapFilt) and to **ModDrop** (both care about robust fusion). |
+| **BLIP** (Li et al., ICML 2022) | Unified VLP for **understanding and generation** via MED; **CapFilt** bootstrapping to exploit noisy web captions. SoTA on retrieval, captioning, VQA, NLVR², VisDial; strong zero-shot video transfer. | Image (ViT) + text (BERT). Assumes web captions are noisy; synthetic captions can help. No object detector. | MED has three modes: unimodal encoder (ITC), image-grounded text encoder (ITM), image-grounded text decoder (LM). CapFilt: captioner generates synthetic captions; filter removes noisy web/synthetic captions; retrain on bootstrapped data. | 14M images (129M with LAION). COCO/Flickr30K retrieval, NoCaps/COCO captioning, VQA2, NLVR², VisDial; zero-shot MSRVTT/MSVD. | ALBEF, CLIP, SimVLM, LEMON, VinVL. +2.7% avg R@1 retrieval, +2.8% CIDEr captioning, +1.6% VQA over prior SoTA. Ablations on CapFilt, nucleus sampling, parameter sharing. | ViT-B/L; 2×16 GPU nodes; 20 epochs; code + weights public. | Single bootstrapping round; one caption per image; no ensemble. CapFilt addresses *noisy* text but not *missing* text at test time. **Connects to ModDrop** as a natural place to add modality-dropout robustness. |
+
+---
+
+## 2.2 Critical Synthesis & Research Gap
+
+### How the six papers connect
+
+The six papers trace two converging arcs: **representation learning at scale** and **robust fusion under imperfect inputs**.
+
+**COCO → CLIP: from curated supervision to web-scale contrastive alignment.** COCO established the modern benchmark for grounded vision–language tasks: real scenes, rich annotations, and five captions per image. But its supervision is human-curated and static. CLIP replaced this with 400M noisy web pairs and a symmetric contrastive objective, showing that *predicting which text goes with which image* is a scalable and transferable pre-training signal. CLIP's zero-shot classifier synthesis via prompts is conceptually elegant, but its alignment is coarse (whole image vs. whole caption), and it assumes both modalities are present at inference.
+
+**OSCAR → ALBEF → BLIP: refining alignment and fusion.** OSCAR introduced explicit semantic anchors: detected object tags that appear in both the image and the text. This makes the alignment problem easier and yields strong gains with a BERT-base model. ALBEF pushed the idea further with "align before fuse": an ITC loss on unimodal [CLS] embeddings *before* cross-modal attention, plus momentum distillation to handle noisy web captions. BLIP unified understanding and generation through MED and tackled data quality directly with CapFilt: a captioner generates diverse synthetic captions and a filter removes noisy ones. The trajectory is clear: **better alignment signals + better data → better downstream performance**.
+
+**ModDrop: the robustness outlier that bridges the two arcs.** ModDrop comes from a different community (gesture recognition) and a different era (2016), but its core insight is directly relevant to VLP: *randomly dropping entire modality channels during training forces the shared layers to learn cross-modal correlations that survive missing inputs*. The authors prove that ModDrop introduces a cross-modality regularization term proportional to `Var(δ)` and show empirically that it dramatically improves robustness to missing or noisy channels (e.g., mocap test error dropping from 38.4% to 92.8% accuracy with ModDrop under missing signals, Table 10 in the paper). This principle has **not** been systematically applied to large-scale VLP models.
+
+### The research gap
+
+The VLP papers (CLIP, OSCAR, ALBEF, BLIP) optimize for *clean paired* inputs at training and *complete* inputs at test time. BLIP's CapFilt addresses **noisy** captions (filtering), but not **missing** captions at inference. ALBEF's momentum distillation addresses **label noise**, not modality absence. None of these models is explicitly trained to degrade gracefully when one modality is corrupted or absent — a realistic condition in deployment (e.g., user queries with typos, OCR failures, privacy-motivated text removal, sensor dropout).
+
+ModDrop showed that modality dropout is a principled and cheap regularizer for exactly this problem, but only in a small-scale gesture-recognition setting. **The gap is therefore: does ModDrop-style modality dropout during fine-tuning of a pretrained VLP model (e.g., CLIP) improve robustness to missing/corrupted text at test time on COCO retrieval, and at what cost to clean-input performance?**
+
+This is a feasible, well-scoped student project: CLIP and COCO are public, fine-tuning is single-GPU friendly, and the improvement is a small, well-motivated modification with a clear control (standard fine-tuning) and clear ablations (dropout rate, corruption type, clean vs. corrupted test conditions).
+
+### Candidate research question (for Part 1 of your report)
+
+> *Does applying ModDrop-style modality dropout during CLIP fine-tuning on COCO image–text retrieval improve robustness to corrupted or missing text at test time, relative to standard fine-tuning, and what is the trade-off on clean inputs?*
+
+---
+
+# Part 3 — Scoping Recommendations for Reproduction
+
+## 3.1 What to reproduce
+
+**Target claim to reproduce:** CLIP's image–text retrieval performance on COCO (zero-shot and/or linear-probe), reported as R@1 / R@5 / R@10 for text retrieval (TR) and image retrieval (IR).
+
+**Why this is a good reproduction target:**
+- CLIP is public (code + weights), well-documented, and runs on a single GPU.
+- COCO 5K test split is standard and public.
+- The metric (recall@K) is unambiguous and directly comparable to published numbers.
+- It gives you a clean baseline to which you can add your ModDrop-style intervention.
+
+**Important caveat:** CLIP's paper emphasizes classification; retrieval numbers may be in the appendix/supplementary or may need to be measured yourself. State clearly in your report whether you are reproducing a *reported* number or *measuring* a baseline that the paper does not emphasize. Either is acceptable if you are transparent.
+
+## 3.2 Concrete baseline design
+
+| Design choice | Recommendation | Rationale |
+|---|---|---|
+| **Model** | CLIP ViT-B/32 (fast) or ViT-B/16 (stronger). Start with ViT-B/32. | Single-GPU feasible; public weights. |
+| **Task** | Image–text retrieval on COCO 5K test set (Karpathy split). Optionally use a 1K subset for iteration. | Standard benchmark; matches ALBEF/BLIP protocols. |
+| **Baseline 1 (zero-shot)** | Precompute CLIP image and text embeddings; rank by cosine similarity; report TR/IR R@1/5/10. | No training; fast; establishes the "frozen CLIP" reference. |
+| **Baseline 2 (linear probe)** | Freeze CLIP encoders; train a small linear projection on COCO train (or a subset) with a contrastive or binary matching loss; evaluate on 5K test. | This is your **primary reproduced baseline** — it is the model you will modify. |
+| **Data** | COCO Karpathy split: 113k train / 5k val / 5k test. Use 5 captions per image; treat each caption as a positive. | Standard; matches ALBEF/BLIP. |
+| **Metrics** | TR R@1/5/10, IR R@1/5/10; mean recall; optionally mean rank. | Directly comparable to published tables. |
+| **Seeds** | Run ≥3 seeds for the fine-tuned baseline; report mean ± std. | Required for honest uncertainty. |
+| **Resources** | Single GPU (e.g., 16–24 GB). Precompute embeddings once; fine-tuning the projection head is cheap. | Feasible for a course project. |
+
+**Deviations to document explicitly:**
+- Smaller backbone (ViT-B/32 vs. ViT-L/14@336px).
+- Subset of COCO (if you use 1K instead of 5K test).
+- Fewer epochs / smaller batch size than the original.
+- No prompt ensembling (if you use a single prompt).
+- Any preprocessing differences (resolution, normalization).
+
+Keep the paper's published numbers in a separate column/table from your measured numbers. Investigate discrepancies (e.g., prompt choice, resolution, split) before attributing them to the method.
+
+---
+
+# Part 4 — Targeted Improvement (ModDrop-inspired robustness)
+
+## 4.1 Proposed intervention
+
+**Idea:** During fine-tuning of the CLIP projection head on COCO retrieval, apply **modality dropout** to the text branch: with probability `p`, replace the text embedding for a training example with a zero vector (or a random text embedding from the batch). Optionally also drop the image embedding with a smaller probability `p_img`. At test time, evaluate under:
+- **Clean** inputs (standard retrieval).
+- **Corrupted text** (e.g., random word deletion/replacement at 20–50% rate before encoding).
+- **Missing text** (zero text embedding).
+- **Corrupted image** (e.g., Gaussian noise or occlusion) as a secondary condition.
+
+**Why this is well-motivated:**
+- ModDrop's theoretical analysis shows that dropping whole modalities introduces a cross-modality regularizer that encourages the shared representation to rely on whichever modality is present.
+- BLIP's CapFilt shows that text noise is a real problem; your intervention extends this to *missing* text at inference.
+- CLIP's contrastive objective is a natural place to apply modality dropout: the loss already contrasts positive vs. negative pairs, so a dropped text acts as an extreme negative / missing-modality example.
+
+## 4.2 Experimental design
+
+| Condition | Training | Test | Purpose |
+|---|---|---|---|
+| **C1: Clean baseline** | Standard fine-tuning (no dropout) | Clean | Reproduced baseline. |
+| **C2: ModDrop (text)** | Drop text embedding w.p. `p` | Clean + corrupted + missing text | Main intervention. |
+| **C3: ModDrop (text + image)** | Drop text w.p. `p`, image w.p. `p_img` | Clean + corrupted + missing | Tests whether image dropout adds robustness or hurts clean performance. |
+| **C4: Control — random noise** | Add Gaussian noise to text embedding (same norm) | Clean + corrupted + missing | Isolates the effect of *dropping* vs. *perturbing*. |
+| **C5: Ablation — dropout rate** | `p ∈ {0.0, 0.1, 0.2, 0.3, 0.5}` | Clean + corrupted + missing | Finds the trade-off curve. |
+
+**Key comparisons:**
+- C2 vs. C1 on **clean** test → cost of robustness.
+- C2 vs. C1 on **corrupted/missing** test → benefit of robustness.
+- C2 vs. C4 → is dropout specifically better than noise?
+- C2 vs. C3 → does dropping the image help or hurt?
+
+**Metrics:**
+- Retrieval R@1/5/10 under each test condition.
+- **Relative degradation**: `(clean_score − corrupted_score) / clean_score` — this is the robustness measure.
+- **Resource measure**: training time per epoch, inference latency (ms/query), peak GPU memory. Report these for C1 vs. C2 to quantify the cost.
+
+## 4.3 What a "negative result" would mean
+
+If ModDrop does **not** improve robustness on COCO retrieval, that is still a valuable finding. Possible explanations to analyze:
+- CLIP's web-scale pre-training may already provide implicit robustness (test this by comparing zero-shot vs. fine-tuned degradation).
+- The projection head may be too shallow for ModDrop's regularizer to matter.
+- COCO captions may be too clean for text corruption to be a meaningful stress test (consider using nocaps or a noisier caption source).
+
+Report unfavorable examples and failure cases (e.g., specific queries where the corrupted model retrieves the wrong image). This is explicitly rewarded by the rubric ("A carefully conducted experiment is still valuable when its outcome is negative").
+
+## 4.4 Resource and feasibility notes
+
+- **Fine-tuning the projection head only** (freeze CLIP encoders) is cheap: precompute embeddings once, then train a small MLP/linear layer for a few epochs.
+- **Corruption at test time** is also cheap: corrupt the text *string* before encoding, or corrupt the embedding directly. String-level corruption is more realistic and easier to justify.
+- **Ablation over `p`** is feasible because each run is short (minutes to a few hours on one GPU).
+- **Do not tune on the test set.** Use the COCO validation split (or a held-out subset of train) to select `p`; report final numbers on the 5K test set.
+
+---
+
+# Quick checklist for your report
+
+- [ ] Literature matrix filled with your own verified details (especially code release status and GPU counts — check the papers/repos).
+- [ ] Synthesis narrative explicitly distinguishes *authors' claims* vs. *your interpretation* vs. *your measurements*.
+- [ ] Reproduction section: original reported number, your measured baseline, deviations, and discrepancy analysis.
+- [ ] Improvement section: rationale *before* results, control/ablation table, clean vs. corrupted results, resource measurements.
+- [ ] Repository: setup instructions, pinned commit, exact commands, saved outputs, scripts to reproduce tables/figures.
+- [ ] AI-use disclosure: list tools used (e.g., this conversation) and what they contributed.
+
+If you'd like, I can next help you draft the **exact experimental protocol** (pseudocode for the ModDrop fine-tuning loop, corruption functions, and the results-table templates) or the **repository README structure** for submission.
