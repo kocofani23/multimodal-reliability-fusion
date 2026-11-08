@@ -1,0 +1,22 @@
+﻿# Dataset and generated features
+data/
+
+# Model checkpoints
+experiments/checkpoints/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# Model files
+*.pt
+*.pth
+*.ckpt
+
+# IDE files
+.vscode/
+.idea/
