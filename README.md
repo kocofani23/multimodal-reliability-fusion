@@ -61,35 +61,40 @@ It uses the same gated-concatenation classifier, but evaluation supplies conditi
 
 
 ## Project Structure
-.
-├── comparisons.txt
-├── results.txt
-├── data/
-│   ├── processed/
-│   │   └── extracted_features.pt
-│   └── raw/
-│       ├── annotations/
-│       │   ├── captions_train2017.json
-│       │   ├── captions_val2017.json
-│       │   ├── instances_train2017.json
-│       │   ├── instances_val2017.json
-│       │   ├── person_keypoints_train2017.json
-│       │   └── person_keypoints_val2017.json
-│       └── val2017/                 # 5,000 COCO validation images
-├── experiments/
-│   ├── checkpoints/                 # 12 checkpoints: 4 variants × 3 seeds
-│   └── results/
-│       ├── aggregated_results.json
-│       ├── config.json
-│       ├── per_seed_results.json
-│       └── training_losses.json
-└── src/
-    ├── data_loader.py
-    ├── evaluate.py
-    ├── features.py
-    ├── models.py
-    └── show_gate.py
 
+```text
+robust-image-text-fusion/
+│
+├── src/                          # Source code
+│   ├── data_loader.py             # COCO data loading and preprocessing
+│   ├── features.py                # Frozen CLIP feature extraction
+│   ├── models.py                  # Fusion model architectures
+│   ├── evaluate.py                # Training and evaluation pipeline
+│   └── show_gate.py               # Gate-weight inspection
+│
+├── data/                          # Dataset files (downloaded separately)
+│   ├── raw/
+│   │   ├── val2017/                # COCO validation images
+│   │   └── annotations/            # COCO captions and instance annotations
+│   └── processed/
+│       └── extracted_features.pt   # Generated CLIP features
+│
+├── experiments/
+│   ├── checkpoints/                # Trained model checkpoints
+│   └── results/                   # Experimental outputs
+│       ├── aggregated_results.json
+│       ├── per_seed_results.json
+│       ├── training_losses.json
+│       └── config.json
+│
+├── comparisons.txt                 # Model comparison notes
+├── results.txt                     # Saved experiment output
+├── requirements.txt                # Python dependencies
+├── .gitignore                      # Excluded files and directories
+└── README.md                       # Project documentation
+```
+
+**Note:** The dataset images, generated feature files, and model checkpoints are excluded from the public repository because of their size. They are generated or downloaded locally by following the instructions above.
 - `src/data_loader.py` joins image files, caption annotations, and instance annotations into COCO multimodal samples.
 - `src/features.py` extracts and saves CLIP features, labels, image IDs, and extraction provenance.
 - `src/models.py` defines late-fusion, gated-concatenation, and gated-sum classifiers.
